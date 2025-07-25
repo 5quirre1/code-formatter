@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <set>
+bool debug = false;
 std::set<std::string> supportedLanguages = {
     "cpp", "c", "java", "go", "javascript", "typescript", "rust", "python", "ruby", "shell"
 };
@@ -27,6 +28,7 @@ std::pair<std::string, std::string> getPatternStuff(const std::string& language)
         singleLine = R"(//.*)";
         multiLine = R"(/\*[\s\S]*?\*/)";
     }
+    if (debug) std::cerr << "[DEBUG] using regex patterns for " << language << "\n";
     return {singleLine, multiLine};
 }
 std::pair<std::string, std::unordered_map<std::string, std::string>> makeSureStringStuffIsSafeLOL(const std::string& code) {
@@ -45,6 +47,7 @@ std::pair<std::string, std::unordered_map<std::string, std::string>> makeSureStr
         maskedCode.replace(start, len, placeholder);
         offset += placeholder.length() - len;
     }
+    if (debug) std::cerr << "[DEBUG] masked " << maskMap.size() << " strings\n";
     return {maskedCode, maskMap};
 }
 std::string unmakeSureStringStuffIsSafeLOL(const std::string& code, const std::unordered_map<std::string, std::string>& maskMap) {
@@ -70,6 +73,7 @@ std::string unescapeHtml(const std::string& code) {
             pos += entity.second.length();
         }
     }
+    if (debug) std::cerr << "[DEBUG] unescaped html stuff\n";
     return result;
 }
 std::string removeComments(const std::string& code, const std::string& language) {
@@ -83,6 +87,7 @@ std::string removeComments(const std::string& code, const std::string& language)
         std::cerr << "regex error while removing comments: " << e.what() << std::endl;
         return code;
     }
+    if (debug) std::cerr << "[DEBUG] removed comments\n";
     return unmakeSureStringStuffIsSafeLOL(maskedCode, maskMap);
 }
 void processFile(const std::string& filename, const std::string& language = "cpp",
@@ -92,6 +97,7 @@ void processFile(const std::string& filename, const std::string& language = "cpp
         std::cerr << "unsupported language: " << language << std::endl;
         return;
     }
+    if (debug) std::cerr << "[DEBUG] processing file: " << filename << " with language: " << language << "\n";
     std::ifstream input(filename);
     if (!input.is_open()) {
         std::cerr << "error opening file: " << filename << std::endl;
@@ -131,10 +137,11 @@ void processFile(const std::string& filename, const std::string& language = "cpp
     output << outputBuffer.str();
     output.close();
     std::cout << "processed file saved to: " << outFile << std::endl;
+    if (debug) std::cerr << "[DEBUG] wrote output to: " << outFile << "\n";
 }
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "usage: " << argv[0] << " <filename> [--language=lang] [--no-unescape] [--no-format] [--no-remove-comments] [-o output]" << std::endl;
+        std::cerr << "usage: " << argv[0] << " <filename> [--language=lang] [--no-unescape] [--no-format] [--no-remove-comments] [-o output] [--debug]" << std::endl;
         return 1;
     }
     std::string filename;
@@ -151,6 +158,8 @@ int main(int argc, char* argv[]) {
             noFormat = true;
         } else if (arg == "--no-remove-comments") {
             noRemoveComments = true;
+        } else if (arg == "--debug") {
+            debug = true;
         } else if (arg.rfind("--language=", 0) == 0) {
             language = arg.substr(11);
         } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {

@@ -6,12 +6,23 @@
 #include <sstream>
 #include <algorithm>
 #include <filesystem>
+#include <set>
+std::set<std::string> supportedLanguages = {
+    "cpp", "c", "java", "go", "javascript", "typescript", "rust", "python", "ruby", "shell"
+};
 std::pair<std::string, std::string> getPatternStuff(const std::string& language) {
     std::string singleLine, multiLine;
-    if (language == "python" || language == "ruby" || language == "shell") {
+    if (language == "python") {
         singleLine = R"(#.*)";
-        if (language == "python") multiLine = R"("""[\s\S]*?"""|'''[\s\S]*?''')";
-        else if (language == "ruby") multiLine = R"(=begin.*?=end)";
+        multiLine = R"("""[\s\S]*?"""|'''[\s\S]*?''')";
+    } else if (language == "ruby") {
+        singleLine = R"(#.*)";
+        multiLine = R"(=begin[\s\S]*?=end)";
+    } else if (language == "shell") {
+        singleLine = R"(#.*)";
+    } else if (language == "rust") {
+        singleLine = R"(//.*)";
+        multiLine = R"(/\*[\s\S]*?\*/|//!.*)";
     } else {
         singleLine = R"(//.*)";
         multiLine = R"(/\*[\s\S]*?\*/)";
@@ -64,14 +75,23 @@ std::string unescapeHtml(const std::string& code) {
 std::string removeComments(const std::string& code, const std::string& language) {
     auto [maskedCode, maskMap] = makeSureStringStuffIsSafeLOL(code);
     auto [singleLine, multiLine] = getPatternStuff(language);
-    if (!multiLine.empty())
-        maskedCode = std::regex_replace(maskedCode, std::regex(multiLine), "");
-    maskedCode = std::regex_replace(maskedCode, std::regex(singleLine), "");
+    try {
+        if (!multiLine.empty())
+            maskedCode = std::regex_replace(maskedCode, std::regex(multiLine), "");
+        maskedCode = std::regex_replace(maskedCode, std::regex(singleLine), "");
+    } catch (const std::regex_error& e) {
+        std::cerr << "regex error while removing comments: " << e.what() << std::endl;
+        return code;
+    }
     return unmakeSureStringStuffIsSafeLOL(maskedCode, maskMap);
 }
-void processFile(const std::string& filename, const std::string& language = "go",
+void processFile(const std::string& filename, const std::string& language = "cpp",
                 bool unescapeHtmlFlag = true, bool noFormat = false,
                 bool noRemoveComments = false, const std::string& outputFile = "") {
+    if (supportedLanguages.find(language) == supportedLanguages.end()) {
+        std::cerr << "unsupported language: " << language << std::endl;
+        return;
+    }
     std::ifstream input(filename);
     if (!input.is_open()) {
         std::cerr << "error opening file: " << filename << std::endl;
@@ -137,7 +157,13 @@ int main(int argc, char* argv[]) {
             output = argv[++i];
         } else if (filename.empty()) {
             filename = arg;
+        } else {
+            std::cerr << "unknown argument: " << arg << std::endl;
         }
+    }
+    if (filename.empty()) {
+        std::cerr << "error: no input file provided" << std::endl;
+        return 1;
     }
     processFile(filename, language, unescapeHtml, noFormat, noRemoveComments, output);
     return 0;
